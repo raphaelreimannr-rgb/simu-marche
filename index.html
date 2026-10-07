@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simu Marché</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1115;
+      color: #e6e6e6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    h1 { font-size: 1.2rem; font-weight: 500; color: #9aa0a6; margin: 0 0 8px; }
+    #prix { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .hausse { color: #26a69a; }
+    .baisse { color: #ef5350; }
+    #statut { margin-top: 12px; font-size: 0.9rem; color: #9aa0a6; }
+  </style>
+</head>
+<body>
+  <h1>BTC / EUR</h1>
+  <div id="prix">—</div>
+  <div id="statut">Connexion…</div>
+
+  <script>
+    // 1. Liste des serveurs Binance à essayer, dans l'ordre (tous en port 443)
+    const serveurs = [
+      "wss://data-stream.binance.vision/ws/btceur@trade",
+      "wss://stream.binance.com:443/ws/btceur@trade"
+    ];
+
+    const affichagePrix = document.getElementById("prix");
+    const affichageStatut = document.getElementById("statut");
+    let ancienPrix = null;
+
+    function connecter(numero) {
+      if (numero >= serveurs.length) {
+        affichageStatut.textContent = "Erreur de connexion (tous les serveurs ont échoué)";
+        return;
+      }
+
+      affichageStatut.textContent = "Connexion au serveur " + (numero + 1) + "…";
+      const socket = new WebSocket(serveurs[numero]);
+      let aRecuUnPrix = false;
+
+      socket.onopen = () => {
+        affichageStatut.textContent = "En direct (serveur " + (numero + 1) + ")";
+      };
+
+      // 2. À chaque transaction sur Binance, un message arrive ici
+      socket.onmessage = (evenement) => {
+        aRecuUnPrix = true;
+        const donnees = JSON.parse(evenement.data);
+        const prix = parseFloat(donnees.p); // "p" = prix de la transaction
+
+        // 3. Couleur : vert si le prix monte, rouge s'il baisse
+        if (ancienPrix !== null && prix > ancienPrix) affichagePrix.className = "hausse";
+        if (ancienPrix !== null && prix < ancienPrix) affichagePrix.className = "baisse";
+        ancienPrix = prix;
+
+        // 4. Afficher le prix au format français (ex : 54 321,00 €)
+        affichagePrix.textContent = prix.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+      };
+
+      // 5. Si ce serveur échoue avant d'avoir donné un prix, on essaie le suivant
+      socket.onclose = () => {
+        if (!aRecuUnPrix) {
+          connecter(numero + 1);
+        } else {
+          affichageStatut.textContent = "Déconnecté — recharge la page";
+        }
+      };
+    }
+
+    connecter(0);
+  </script>
+</body>
+</html>
