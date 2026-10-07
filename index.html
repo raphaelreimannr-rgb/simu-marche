@@ -18,14 +18,16 @@
     }
     h1 { font-size: 1.2rem; font-weight: 500; color: #9aa0a6; margin: 0 0 8px; }
     #prix { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .hausse { color: #26a69a; }
-    .baisse { color: #ef5350; }
+    .hausse { color: #4caf50; }
+    .baisse { color: #f44336; }
+    #heure { margin-top: 4px; font-size: 0.85rem; color: #9aa0a6; }
     #statut { margin-top: 12px; font-size: 0.9rem; color: #9aa0a6; }
   </style>
 </head>
 <body>
   <h1>BTC / EUR</h1>
   <div id="prix">—</div>
+  <div id="heure"></div>
   <div id="statut">Connexion…</div>
 
   <script>
@@ -36,6 +38,7 @@
     ];
 
     const affichagePrix = document.getElementById("prix");
+    const affichageHeure = document.getElementById("heure");
     const affichageStatut = document.getElementById("statut");
     let ancienPrix = null;
 
@@ -66,6 +69,7 @@
 
         // 4. Afficher le prix au format français (ex : 54 321,00 €)
         affichagePrix.textContent = prix.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+        affichageHeure.textContent = "Mis à jour à " + new Date().toLocaleTimeString("fr-FR");
       };
 
       // 5. Si ce serveur échoue avant d'avoir donné un prix, on essaie le suivant
