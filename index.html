@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simu Marché</title>
+  <!-- Bibliothèque de graphiques de TradingView (open source), chargée depuis internet -->
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     body {
       font-family: system-ui, sans-serif;
@@ -12,9 +14,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       min-height: 100vh;
       margin: 0;
+      padding: 32px 16px;
+      box-sizing: border-box;
     }
     h1 { font-size: 1.2rem; font-weight: 500; color: #9aa0a6; margin: 0 0 8px; }
     #prix { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -22,6 +25,7 @@
     .baisse { color: #f44336; }
     #heure { margin-top: 4px; font-size: 0.85rem; color: #9aa0a6; }
     #statut { margin-top: 12px; font-size: 0.9rem; color: #9aa0a6; }
+    #graphique { width: 100%; max-width: 1000px; height: 420px; margin-top: 24px; }
   </style>
 </head>
 <body>
@@ -29,8 +33,11 @@
   <div id="prix">—</div>
   <div id="heure"></div>
   <div id="statut">Connexion…</div>
+  <div id="graphique"></div>
 
   <script>
+    // ================= PARTIE A : LE PRIX EN DIRECT (ton code) =================
+
     // 1. Liste des serveurs Binance à essayer, dans l'ordre (tous en port 443)
     const serveurs = [
       "wss://data-stream.binance.vision/ws/btceur@trade",
@@ -83,6 +90,85 @@
     }
 
     connecter(0);
+
+
+    // ================= PARTIE B : LES BOUGIES =================
+
+    // 6. Créer le graphique et une série de bougies
+    const graphique = LightweightCharts.createChart(document.getElementById("graphique"), {
+      autoSize: true, // le graphique prend la taille de sa boîte
+      layout: { background: { color: "#0f1115" }, textColor: "#9aa0a6" },
+      grid: { vertLines: { color: "#1c1f26" }, horzLines: { color: "#1c1f26" } },
+      timeScale: { timeVisible: true, secondsVisible: false }
+    });
+
+    const bougies = graphique.addCandlestickSeries({
+      upColor: "#4caf50", wickUpColor: "#4caf50", borderUpColor: "#4caf50",
+      downColor: "#f44336", wickDownColor: "#f44336", borderDownColor: "#f44336"
+    });
+
+    // Le graphique affiche les heures en UTC. On décale chaque bougie
+    // du fuseau de l'ordinateur pour afficher l'heure française.
+    const decalage = -new Date().getTimezoneOffset() * 60; // en secondes
+
+    // Une bougie = 4 prix sur 1 minute : ouverture, plus haut, plus bas, clôture
+    function versBougie(debutEnMs, ouverture, haut, bas, cloture) {
+      return {
+        time: Math.floor(debutEnMs / 1000) + decalage,
+        open: parseFloat(ouverture),
+        high: parseFloat(haut),
+        low: parseFloat(bas),
+        close: parseFloat(cloture)
+      };
+    }
+
+    // 7. L'historique : on demande UNE fois les 200 dernières bougies d'1 minute
+    const adressesHistorique = [
+      "https://data-api.binance.vision/api/v3/klines?symbol=BTCEUR&interval=1m&limit=200",
+      "https://api.binance.com/api/v3/klines?symbol=BTCEUR&interval=1m&limit=200"
+    ];
+
+    async function chargerHistorique() {
+      for (const adresse of adressesHistorique) {
+        try {
+          const reponse = await fetch(adresse);
+          const lignes = await reponse.json();
+          // Chaque ligne : [début, ouverture, haut, bas, clôture, volume, ...]
+          bougies.setData(lignes.map(l => versBougie(l[0], l[1], l[2], l[3], l[4])));
+          return; // ça a marché, on s'arrête
+        } catch (erreur) {
+          // ce serveur a échoué : la boucle passe au suivant
+        }
+      }
+      affichageStatut.textContent = "Historique des bougies indisponible";
+    }
+
+    // 8. Le direct : une 2e connexion qui envoie la bougie en cours chaque seconde
+    const serveursBougies = [
+      "wss://data-stream.binance.vision/ws/btceur@kline_1m",
+      "wss://stream.binance.com:443/ws/btceur@kline_1m"
+    ];
+
+    function connecterBougies(numero) {
+      if (numero >= serveursBougies.length) return;
+
+      const socket = new WebSocket(serveursBougies[numero]);
+      let aRecuUneBougie = false;
+
+      socket.onmessage = (evenement) => {
+        aRecuUneBougie = true;
+        const k = JSON.parse(evenement.data).k; // "k" = la bougie en cours
+        // update() modifie la dernière bougie si c'est la même minute,
+        // ou en ajoute une nouvelle si une nouvelle minute commence
+        bougies.update(versBougie(k.t, k.o, k.h, k.l, k.c));
+      };
+
+      socket.onclose = () => {
+        if (!aRecuUneBougie) connecterBougies(numero + 1);
+      };
+    }
+
+    chargerHistorique().then(() => connecterBougies(0));
   </script>
 </body>
 </html>
