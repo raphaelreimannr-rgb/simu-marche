@@ -26,9 +26,52 @@
     #heure { margin-top: 4px; font-size: 0.85rem; color: #9aa0a6; }
     #statut { margin-top: 12px; font-size: 0.9rem; color: #9aa0a6; }
     #graphique { width: 100%; max-width: 1000px; height: 420px; margin-top: 24px; }
+
+    /* Portefeuille */
+    #portefeuille { width: 100%; max-width: 1000px; margin-bottom: 32px; }
+    .tuiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .tuile { background: #171a21; border: 1px solid #23262e; border-radius: 10px; padding: 12px 14px; }
+    .tuile .label { font-size: 0.8rem; color: #9aa0a6; }
+    .tuile .valeur { font-size: 1.3rem; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .ordre { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+    .ordre input { background: #171a21; border: 1px solid #23262e; color: #e6e6e6; border-radius: 8px; padding: 10px; width: 140px; font-size: 1rem; }
+    .ordre button { border: none; border-radius: 8px; padding: 10px 16px; font-size: 1rem; font-weight: 600; cursor: pointer; color: #fff; }
+    #btnAcheter { background: #4caf50; }
+    #btnVendre { background: #f44336; }
+    #btnToutVendre { background: #23262e; }
+    #message { font-size: 0.9rem; color: #9aa0a6; }
+    #historique { margin-top: 12px; max-height: 160px; overflow-y: auto; font-size: 0.85rem; }
+    #historique table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    #historique th, #historique td { text-align: right; padding: 6px 8px; border-bottom: 1px solid #1c1f26; }
+    #historique th { color: #9aa0a6; font-weight: 500; position: sticky; top: 0; background: #0f1115; }
+    #historique th:first-child, #historique td:first-child,
+    #historique th:nth-child(2), #historique td:nth-child(2) { text-align: left; }
+    @media (max-width: 640px) { .tuiles { grid-template-columns: repeat(2, 1fr); } }
   </style>
 </head>
 <body>
+  <section id="portefeuille">
+    <div class="tuiles">
+      <div class="tuile"><div class="label">Euros disponibles</div><div class="valeur" id="tuileEuros">—</div></div>
+      <div class="tuile"><div class="label">BTC détenus</div><div class="valeur" id="tuileBtc">—</div></div>
+      <div class="tuile"><div class="label">Valeur totale</div><div class="valeur" id="tuileTotal">—</div></div>
+      <div class="tuile"><div class="label">Gain / perte</div><div class="valeur" id="tuileGain">—</div></div>
+    </div>
+    <div class="ordre">
+      <input id="montant" type="number" min="1" step="1" placeholder="Montant en €">
+      <button id="btnAcheter">Acheter</button>
+      <button id="btnVendre">Vendre</button>
+      <button id="btnToutVendre">Tout vendre</button>
+      <span id="message"></span>
+    </div>
+    <div id="historique">
+      <table>
+        <thead><tr><th>Heure</th><th>Ordre</th><th>Montant</th><th>Prix BTC</th><th>Quantité BTC</th><th>Gain réalisé</th></tr></thead>
+        <tbody id="lignesOrdres"></tbody>
+      </table>
+    </div>
+  </section>
+
   <h1>BTC / EUR</h1>
   <div id="prix">—</div>
   <div id="heure"></div>
@@ -73,6 +116,7 @@
         if (ancienPrix !== null && prix > ancienPrix) affichagePrix.className = "hausse";
         if (ancienPrix !== null && prix < ancienPrix) affichagePrix.className = "baisse";
         ancienPrix = prix;
+        mettreAJourPortefeuille(); // le portefeuille suit le prix en direct
 
         // 4. Afficher le prix au format français (ex : 54 321,00 €)
         affichagePrix.textContent = prix.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -169,6 +213,121 @@
     }
 
     chargerHistorique().then(() => connecterBougies(0));
+
+
+    // ================= PARTIE C : LE PORTEFEUILLE VIRTUEL =================
+
+    const CAPITAL_DEPART = 10000; // argent fictif au départ, en €
+    let euros = CAPITAL_DEPART;   // euros non investis
+    let btc = 0;                  // quantité de BTC détenue
+    let coutDesBtc = 0;           // combien on a payé, au total, les BTC encore détenus
+
+    // ╔══════════════════════════════════════════════════════════╗
+    // ║                    À TOI DE CODER                        ║
+    // ╚══════════════════════════════════════════════════════════╝
+
+    // 9. Valeur totale du portefeuille, en €.
+    //    Tu as : euros (€ non investis), btc (quantité de BTC), prix (prix actuel d'1 BTC en €)
+    function calculerValeurTotale(euros, btc, prix) {
+      return euros + btc * prix;
+    }
+
+    // 10. Gain (nombre positif) ou perte (nombre négatif) depuis le départ, en €.
+    //     Indice : tu as commencé avec CAPITAL_DEPART euros.
+    function calculerGain(valeurTotale) {
+      return valeurTotale - CAPITAL_DEPART;
+    }
+
+    // 11. Le même gain, en pourcentage du capital de départ.
+    //     Exemple : +500 € sur 10 000 € doit donner 5.
+    function calculerGainPourcent(gain) {
+      return gain / CAPITAL_DEPART * 100;
+    }
+
+    // ═══════════════════ FIN DE TA PARTIE ═══════════════════════
+
+
+    // 12. Afficher le portefeuille (appelé à chaque nouveau prix et après chaque ordre)
+    const formatEuros = (n) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+
+    function mettreAJourPortefeuille() {
+      document.getElementById("tuileEuros").textContent = formatEuros(euros);
+      document.getElementById("tuileBtc").textContent = btc.toFixed(6) + " ₿";
+      if (ancienPrix === null) return; // pas encore de prix : on ne peut rien calculer
+
+      const total = calculerValeurTotale(euros, btc, ancienPrix);
+      const gain = calculerGain(total);
+      const pourcent = calculerGainPourcent(gain);
+
+      document.getElementById("tuileTotal").textContent = formatEuros(total);
+      const tuileGain = document.getElementById("tuileGain");
+      const signe = gain > 0 ? "+" : "";
+      tuileGain.textContent = signe + formatEuros(gain) + " (" + signe + pourcent.toFixed(2) + " %)";
+      tuileGain.className = "valeur " + (gain > 0 ? "hausse" : gain < 0 ? "baisse" : "");
+    }
+
+    // 13. Passer un ordre d'achat ou de vente au prix actuel
+    const message = document.getElementById("message");
+
+    function ajouterLigneHistorique(type, montant, prix, quantite, gainRealise) {
+      const ligne = document.createElement("tr");
+      const gainTexte = gainRealise === null ? "—" : (gainRealise > 0 ? "+" : "") + formatEuros(gainRealise);
+      ligne.innerHTML =
+        "<td>" + new Date().toLocaleTimeString("fr-FR") + "</td>" +
+        "<td class='" + (type === "Achat" ? "hausse" : "baisse") + "'>" + type + "</td>" +
+        "<td>" + formatEuros(montant) + "</td>" +
+        "<td>" + formatEuros(prix) + "</td>" +
+        "<td>" + quantite.toFixed(6) + "</td>" +
+        "<td>" + gainTexte + "</td>";
+      document.getElementById("lignesOrdres").prepend(ligne); // le plus récent en haut
+    }
+
+    function acheter() {
+      const montant = parseFloat(document.getElementById("montant").value);
+      if (ancienPrix === null) { message.textContent = "Attends le premier prix."; return; }
+      if (!(montant > 0)) { message.textContent = "Entre un montant positif."; return; }
+      if (montant > euros) { message.textContent = "Pas assez d'euros disponibles."; return; }
+
+      const quantite = montant / ancienPrix;
+      euros -= montant;
+      btc += quantite;
+      coutDesBtc += montant;
+
+      ajouterLigneHistorique("Achat", montant, ancienPrix, quantite, null);
+      message.textContent = "Achat exécuté.";
+      mettreAJourPortefeuille();
+    }
+
+    function vendre(montant) {
+      if (ancienPrix === null) { message.textContent = "Attends le premier prix."; return; }
+      if (!(montant > 0)) { message.textContent = "Entre un montant positif."; return; }
+
+      let quantite = montant / ancienPrix;
+      if (quantite > btc + 1e-12) { message.textContent = "Tu n'as pas assez de BTC."; return; }
+      quantite = Math.min(quantite, btc);
+
+      // Part des BTC vendus → part du coût d'achat correspondant
+      const coutVendu = btc > 0 ? coutDesBtc * (quantite / btc) : 0;
+      const gainRealise = montant - coutVendu;
+
+      euros += montant;
+      btc -= quantite;
+      coutDesBtc -= coutVendu;
+      if (btc < 1e-12) { btc = 0; coutDesBtc = 0; } // évite les miettes d'arrondi
+
+      ajouterLigneHistorique("Vente", montant, ancienPrix, quantite, gainRealise);
+      message.textContent = "Vente exécutée.";
+      mettreAJourPortefeuille();
+    }
+
+    document.getElementById("btnAcheter").onclick = acheter;
+    document.getElementById("btnVendre").onclick = () =>
+      vendre(parseFloat(document.getElementById("montant").value));
+    document.getElementById("btnToutVendre").onclick = () => {
+      if (ancienPrix !== null) vendre(btc * ancienPrix);
+    };
+
+    mettreAJourPortefeuille();
   </script>
 </body>
 </html>
